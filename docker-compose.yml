@@ -1,0 +1,84 @@
+name: x-virality-tracker
+
+x-app: &x-app
+  build:
+    context: .
+  image: x-virality-tracker:local
+  env_file:
+    - ./.env
+  environment:
+    XV_DATABASE_URL: ${XV_DATABASE_URL:?XV_DATABASE_URL must be set in .env}
+    XV_RULES_PATH: ${XV_RULES_PATH:-/app/config/rules.example.yml}
+    XV_API_HOST: 0.0.0.0
+    XV_API_PORT: 8080
+  volumes:
+    - ./config/rules.example.yml:/app/config/rules.example.yml:ro
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${XV_POSTGRES_DB:-x_virality}
+      POSTGRES_USER: ${XV_POSTGRES_USER:-x_virality}
+      POSTGRES_PASSWORD: ${XV_POSTGRES_PASSWORD:?XV_POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  migrate:
+    <<: *x-app
+    command: ["migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *x-app
+    command: ["api"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${XV_HOST_API_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  stream:
+    <<: *x-app
+    command: ["stream"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "x-virality", "healthcheck", "--role", "stream"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  worker:
+    <<: *x-app
+    command: ["worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "x-virality", "healthcheck", "--role", "worker"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  postgres-data:

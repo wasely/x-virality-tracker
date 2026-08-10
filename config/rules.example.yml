@@ -1,0 +1,64 @@
+version: 1
+environment: production
+
+alert_policy:
+  min_cohort_size: 30
+  cooldown_minutes: 180
+  breakout:
+    score_min: 85
+    velocity_percentile_min: 90
+    author_lift_min: 2.0
+  emerging_conversation:
+    score_min: 82
+    unique_authors_min: 6
+    topic_spike_min: 3.0
+
+scoring:
+  version: rules-v1
+  engagement:
+    likes: 1.0
+    reposts: 2.0
+    quotes: 3.0
+    replies: 1.5
+    bookmarks: 0.25
+  post_weights:
+    velocity_percentile: 0.30
+    acceleration_percentile: 0.15
+    author_lift_percentile: 0.20
+    topic_spike_percentile: 0.20
+    conversation_spread_percentile: 0.10
+    impression_velocity_percentile: 0.05
+
+topics:
+  - key: ai-agents
+    niche: ai-software
+    label: AI agents and coding agents
+  - key: frontier-models
+    niche: ai-software
+    label: Frontier model companies and products
+  - key: ai-launches
+    niche: ai-software
+    label: AI launches and breaking announcements
+
+rules:
+  - key: niche-ai-terms
+    topic: ai-agents
+    niche: ai-software
+    enabled: true
+    query: '("AI agent" OR "coding agent" OR "vibe coding" OR LLM OR AGI) lang:en -is:retweet'
+  - key: products-and-companies
+    topic: frontier-models
+    niche: ai-software
+    enabled: true
+    query: '(OpenAI OR Anthropic OR Claude OR Gemini OR Cursor) lang:en -is:retweet'
+  - key: discussion-signals
+    topic: ai-launches
+    niche: ai-software
+    enabled: true
+    query: '("new model" OR "just launched" OR breaking OR "open source") (AI OR LLM OR agent) lang:en -is:retweet'
+  # Replace these placeholders before enabling this rule.
+  - key: high-signal-accounts
+    topic: ai-agents
+    niche: ai-software
+    enabled: false
+    query: 'from:account1 OR from:account2 OR from:account3'
